@@ -1,0 +1,2 @@
+[do]
+${public_ip}

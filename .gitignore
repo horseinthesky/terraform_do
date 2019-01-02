@@ -1,0 +1,6 @@
+# Terraform service dirs and files
+.terraform/
+*terraform.tfstate*
+
+# Secrets
+*secret*
