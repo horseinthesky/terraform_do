@@ -1,18 +1,24 @@
-resource "digitalocean_droplet" "vps" { # terraform name
+# Create a new SSH key
+resource "digitalocean_ssh_key" "default" {
+  name       = "Default"
+  public_key = "${file("~/.ssh/id_rsa.pub")}"
+}
+# Create a new Droplet using the SSH key
+resource "digitalocean_droplet" "vps" {
   image = "ubuntu-18-04-x64"
-  name = "VPS" # DO name
+  name = "VPS"
   region = "fra1"
   size = "s-1vcpu-2gb"
   monitoring = true
   ipv6 = true
   ssh_keys = [
-    "${var.ssh_fingerprint}"
+    "${digitalocean_ssh_key.default.fingerprint}"
   ]
 
   connection {
     user = "root"
     type = "ssh"
-    private_key = "${file(var.pvt_key)}"
+    private_key = "${file("~/.ssh/id_rsa")}"
     timeout = "2m"
   }
 
@@ -27,25 +33,18 @@ resource "digitalocean_droplet" "vps" { # terraform name
     ]
   }
 
-  # Install WireGuard
-  provisioner "remote-exec" {
-    inline = [
-      "sleep 30",
-      "add-apt-repository -y ppa:wireguard/wireguard",
-      "apt-get update",
-      "apt-get install -y wireguard"
-    ]
-  }
-
   # Generate WireGuard config file
   provisioner "file" {
     content = "${data.template_file.server.rendered}"
     destination = "/etc/wireguard/wg0.conf"
   }
 
-  # Enable WireGuard interface on startup
+  # Install WireGuard and enable it on startup
   provisioner "remote-exec" {
     inline = [
+      "sleep 30",
+      "add-apt-repository -y ppa:wireguard/wireguard",
+      "apt-get update && apt-get install -y wireguard",
       "systemctl enable wg-quick@wg0",
       "systemctl start wg-quick@wg0"
     ]
@@ -54,12 +53,29 @@ resource "digitalocean_droplet" "vps" { # terraform name
   # Install Docker and Docker-compose
   provisioner "remote-exec" {
     inline = [
-      "apt-get update",
       "apt-get install -y apt-transport-https ca-certificates curl software-properties-common python3-pip",
       "apt-get install -y docker.io",
       "apt autoremove -y",
       "pip3 install -U pip",
       "pip install docker-compose"
+    ]
+  }
+
+  # Copy monitoring stuff
+  provisioner "file" {
+    source = "monitoring/"
+    destination = "/opt/monitoring"
+  }
+
+  # Install monitoring
+  provisioner "remote-exec" {
+    inline = [
+      "mkdir -p /srv/influxdb/data",
+      "mkdir -p /srv/grafana/data; chown 472:472 /srv/grafana/data",
+      "mv /opt/monitoring/monitoring.service /etc/systemd/system/monitoring.service",
+      "systemctl daemon-reload",
+      "systemctl enable monitoring.service",
+      "systemctl start monitoring.service"
     ]
   }
 }
