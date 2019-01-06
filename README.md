@@ -19,7 +19,7 @@ wireguard_private_key = "your_wireguard_server_private_key"
 You may also provide `grafana_admin_password` variable in secrets file. Otherwise `admin` user password will be `admin`.
 Make sure there is `secret` in the title and it ends with `.auto.tfvars`.
 
-### Specify WireGuard pubkeys of you clients
+### Specify your WireGuard clients pubkeys
 Replace my wireguard public keys(`pubkeys` variable) with yours in `vars.tf` file and you are good to go.
 
 ## Deployment
