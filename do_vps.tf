@@ -33,18 +33,25 @@ resource "digitalocean_droplet" "vps" {
     ]
   }
 
+  # Install WireGuard
+  provisioner "remote-exec" {
+    inline = [
+      "sleep 30",
+      "add-apt-repository -y ppa:wireguard/wireguard",
+      "apt-get update",
+      "apt-get install -y wireguard"
+    ]
+  }
+
   # Generate WireGuard config file
   provisioner "file" {
     content = "${data.template_file.server.rendered}"
     destination = "/etc/wireguard/wg0.conf"
   }
 
-  # Install WireGuard and enable it on startup
+  # Enable WireGuard interface on startup
   provisioner "remote-exec" {
     inline = [
-      "sleep 30",
-      "add-apt-repository -y ppa:wireguard/wireguard",
-      "apt-get update && apt-get install -y wireguard",
       "systemctl enable wg-quick@wg0",
       "systemctl start wg-quick@wg0"
     ]
@@ -63,8 +70,8 @@ resource "digitalocean_droplet" "vps" {
 
   # Copy monitoring stuff
   provisioner "file" {
-    source = "monitoring/"
-    destination = "/opt/monitoring"
+    source = "monitoring"
+    destination = "/opt"
   }
 
   # Install monitoring
@@ -76,6 +83,15 @@ resource "digitalocean_droplet" "vps" {
       "systemctl daemon-reload",
       "systemctl enable monitoring.service",
       "systemctl start monitoring.service"
+    ]
+  }
+
+  # Setup Grafana
+  provisioner "remote-exec" {
+    inline = [
+      "curl -X POST -u admin:admin -H 'Content-Type: application/json' -d @/opt/monitoring/datasource.json http://localhost:3000/api/datasources",
+      "curl -X POST -u admin:admin -H 'Content-Type: application/json' -d @/opt/monitoring/dashboard.json http://localhost:3000/api/dashboards/db",
+      "curl -X PUT -u admin:admin -H 'Content-Type: application/json' -d '{\"password\": \"${var.grafana_admin_password}\"}' http://localhost:3000/api/admin/users/1/password"
     ]
   }
 }
